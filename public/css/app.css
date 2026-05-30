@@ -1,0 +1,28 @@
+/* ── Filter ───────────────────────────────────────────────────────────────── */
+/*
+ * CSS-driven filter: adding a class to #task-list hides non-matching items.
+ * No JS visibility logic needed — toggling one class is enough.
+ */
+#task-list.filter-pending .task-done   { display: none; }
+#task-list.filter-done    .task-pending { display: none; }
+
+/* ── Task items ───────────────────────────────────────────────────────────── */
+.task-done .task-name {
+    text-decoration: line-through;
+    color: #6c757d;
+}
+
+.task-name {
+    cursor: default;
+}
+
+/* Inline edit input replaces the task name span */
+.task-name-input {
+    border: none;
+    border-bottom: 2px solid #0d6efd;
+    outline: none;
+    background: transparent;
+    flex-grow: 1;
+    padding: 0;
+    font-size: inherit;
+}
