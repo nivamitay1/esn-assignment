@@ -20,6 +20,8 @@ class TaskController extends Controller
 
     public function store(TaskRequest $request): JsonResponse
     {
+        // validated() returns only the fields that passed the TaskRequest rules,
+        // preventing mass-assignment of arbitrary request data.
         $task = Task::create($request->validated());
 
         return response()->json($task, 201);
@@ -34,6 +36,8 @@ class TaskController extends Controller
 
     public function toggle(Task $task): JsonResponse
     {
+        // $task is resolved automatically via route model binding — Laravel
+        // fetches the record by ID and throws 404 if it doesn't exist.
         $task->update(['is_done' => ! $task->is_done]);
 
         return response()->json($task);

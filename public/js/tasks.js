@@ -1,5 +1,8 @@
 $(function () {
 
+    // X-CSRF-TOKEN: required by Laravel for all non-GET requests.
+    // Accept: application/json: tells Laravel to return JSON error responses
+    //   instead of HTML redirects (e.g. 422 validation errors, 419 CSRF errors).
     $.ajaxSetup({
         headers: {
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
@@ -59,11 +62,14 @@ $(function () {
     });
 
     // ── Delete task (with undo) ───────────────────────────────────────────────
+    // The actual DELETE request is deferred by 5 seconds so the user can undo.
+    // The item is hidden visually (task-leaving) immediately for instant feedback,
+    // but stays in the DOM until the timer fires or the user dismisses the toast.
 
     $('#task-list').on('click', '.btn-delete', function () {
         const $item = $(this).closest('.task-item');
 
-        // Commit any previous pending delete immediately
+        // Only one pending delete at a time — commit the previous one immediately.
         if (pendingDelete) commitDelete();
 
         pendingDelete = { $item, id: $item.data('id') };
@@ -243,6 +249,7 @@ $(function () {
             $('<button>').attr('type', 'button').addClass('btn-action btn-delete').text('Delete')
         );
 
+        // .text() is used intentionally — it escapes HTML and prevents XSS.
         $('<li>')
             .addClass('task-item task-pending')
             .attr('data-id', task.id)
