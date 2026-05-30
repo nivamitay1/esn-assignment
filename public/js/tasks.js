@@ -1,156 +1,257 @@
 $(function () {
 
-    // Attach CSRF token to every AJAX request automatically
     $.ajaxSetup({
         headers: {
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
-            'Accept':        'application/json',
+            'Accept': 'application/json',
         },
     });
 
+    // ── State ─────────────────────────────────────────────────────────────────
+
+    let currentFilter  = 'all';
+    let toastTimer     = null;
+    let pendingDelete  = null; // { $item, id }
+
     // ── Add task ──────────────────────────────────────────────────────────────
+
+    $('#task-name-input').on('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            $('#add-task-form').trigger('submit');
+        }
+    });
 
     $('#add-task-form').on('submit', function (e) {
         e.preventDefault();
-
         const $input = $('#task-name-input');
-        const name   = $input.val().trim();
+        const name = $input.val().trim();
         if (!name) return;
 
-        $.post('/tasks', { name })
-            .done(function (task) {
-                prependTask(task);
-                $input.val('');
-                syncEmptyMessage();
-            });
+        $.post('/tasks', { name }).done(function (task) {
+            prependTask(task);
+            $input.val('').trigger('input').trigger('focus');
+            syncAll();
+        });
     });
 
     // ── Toggle done / not-done ────────────────────────────────────────────────
 
-    $('#task-list').on('click', '.toggle-btn', function () {
+    $('#task-list').on('click', '.btn-toggle', function () {
         const $item = $(this).closest('.task-item');
 
-        $.post('/tasks/' + $item.data('id') + '/toggle')
-            .done(function (task) {
-                $item
-                    .toggleClass('task-pending', !task.is_done)
-                    .toggleClass('task-done',    task.is_done)
-                    .find('.toggle-btn')
-                    .text(task.is_done ? 'Undo' : 'Done');
+        $.post('/tasks/' + $item.data('id') + '/toggle').done(function (task) {
+            $item
+                .toggleClass('task-pending', !task.is_done)
+                .toggleClass('task-done',    task.is_done)
+                .find('.btn-toggle')
+                .text(task.is_done ? 'Undo' : 'Done');
 
-                syncEmptyMessage();
-            });
+            // Move done tasks to bottom, pending to top
+            if (task.is_done) {
+                $item.appendTo('#task-list');
+            } else {
+                $item.prependTo('#task-list');
+            }
+
+            syncAll();
+        });
     });
 
-    // ── Delete task ───────────────────────────────────────────────────────────
+    // ── Delete task (with undo) ───────────────────────────────────────────────
 
-    $('#task-list').on('click', '.delete-btn', function () {
+    $('#task-list').on('click', '.btn-delete', function () {
         const $item = $(this).closest('.task-item');
 
-        $.ajax({ url: '/tasks/' + $item.data('id'), type: 'DELETE' })
-            .done(function () {
-                $item.remove();
-                syncEmptyMessage();
-            });
+        // Commit any previous pending delete immediately
+        if (pendingDelete) commitDelete();
+
+        pendingDelete = { $item, id: $item.data('id') };
+
+        $item.addClass('task-leaving');
+        syncAll();
+
+        showToast('Task deleted', function undo() {
+            pendingDelete = null;
+            $item.removeClass('task-leaving');
+            syncAll();
+        });
+
+        toastTimer = setTimeout(function () {
+            commitDelete();
+        }, 5000);
     });
 
-    // ── Inline edit (double-click task name) ──────────────────────────────────
+    function commitDelete() {
+        if (!pendingDelete) return;
+        const { $item, id } = pendingDelete;
+        pendingDelete = null;
+        $.ajax({ url: '/tasks/' + id, type: 'DELETE' }).done(function () {
+            $item.remove();
+            syncAll();
+        });
+        hideToast();
+    }
 
-    $('#task-list').on('dblclick', '.task-name', function () {
-        const $span    = $(this);
-        const original = $span.text();
+    // ── Inline edit ───────────────────────────────────────────────────────────
 
-        // Replace span with a text input
-        const $input = $('<input>')
-            .attr({ type: 'text', maxlength: 255, 'aria-label': 'Edit task name' })
-            .addClass('task-name-input flex-grow-1')
+    $('#task-list').on('click', '.btn-edit', function () {
+        const $item    = $(this).closest('.task-item');
+        const $span    = $item.find('.task-name');
+        const original = $span.text().trim();
+        const $editBtn = $(this).text('Save').off('click');
+
+        const $input = $('<textarea>')
+            .attr({ maxlength: 255, 'aria-label': 'Edit task name', rows: 3 })
+            .addClass('task-name-input')
             .val(original);
 
-        $span.replaceWith($input);
+        const $counter = $('<span>').addClass('char-counter');
+        bindCounter($input, $counter);
+
+        $span.replaceWith($('<div>').addClass('task-edit-wrap').append($input, $counter));
         $input.trigger('focus').select();
+
+        function finish() { $editBtn.text('Edit').off('click'); }
 
         function save() {
             const newName = $input.val().trim();
-            if (!newName || newName === original) {
-                return cancel();
-            }
+            if (!newName || newName === original) return cancel();
 
-            $.ajax({ url: '/tasks/' + $input.closest('.task-item').data('id'), type: 'PATCH', data: { name: newName } })
+            $.ajax({ url: '/tasks/' + $item.data('id'), type: 'PATCH', data: { name: newName } })
                 .done(function (task) {
-                    // Use .text() — never .html() — to prevent XSS
-                    $input.replaceWith($('<span>').addClass('task-name flex-grow-1').attr('title', 'Double-click to edit').text(task.name));
+                    $item.find('.task-edit-wrap').replaceWith($('<span>').addClass('task-name').text(task.name));
+                    finish();
                 });
         }
 
         function cancel() {
-            $input.replaceWith($('<span>').addClass('task-name flex-grow-1').attr('title', 'Double-click to edit').text(original));
+            $item.find('.task-edit-wrap').replaceWith($('<span>').addClass('task-name').text(original));
+            finish();
         }
 
+        $editBtn.on('click', save);
         $input.on('keydown', function (e) {
-            if (e.key === 'Enter')  { e.preventDefault(); save(); }
-            if (e.key === 'Escape') { cancel(); }
-        });
-
-        // blur fires after keydown, so use a small delay to let keydown handle Enter/Escape first
-        $input.on('blur', function () {
-            setTimeout(function () {
-                if ($input.closest('body').length) save();
-            }, 100);
+            if (e.key === 'Escape') cancel();
         });
     });
 
     // ── Filter ────────────────────────────────────────────────────────────────
 
     $('[data-filter]').on('click', function () {
-        const filterClass = $(this).data('filter'); // '', 'filter-pending', or 'filter-done'
-
-        // Update button states
+        currentFilter = $(this).data('filter');
         $('[data-filter]').attr('aria-pressed', 'false').removeClass('active');
         $(this).attr('aria-pressed', 'true').addClass('active');
-
-        // Swap filter class on the list — CSS rules do the actual hiding
-        $('#task-list')
-            .removeClass('filter-pending filter-done')
-            .addClass(filterClass);
-
-        syncEmptyMessage();
+        applyFilter();
     });
 
-    // Activate "All" button on load
-    $('[data-filter=""]').addClass('active').attr('aria-pressed', 'true');
+    function applyFilter() {
+        $('#task-list .task-item').each(function () {
+            if ($(this).hasClass('task-leaving')) return; // skip pending-delete items
+            const isDone = $(this).hasClass('task-done');
+            const show = currentFilter === 'all'
+                      || (currentFilter === 'done'    &&  isDone)
+                      || (currentFilter === 'pending' && !isDone);
+            $(this).toggle(show);
+        });
+        syncEmptyMessage();
+    }
 
-    // ── Empty-state helper ────────────────────────────────────────────────────
+    // ── Sync helpers ──────────────────────────────────────────────────────────
+
+    function syncAll() {
+        applyFilter();
+        updateFilterBadges();
+    }
+
+    function updateFilterBadges() {
+        const $items   = $('#task-list .task-item:not(.task-leaving)');
+        const total    = $items.length;
+        const done     = $items.filter('.task-done').length;
+        const pending  = total - done;
+
+        $('[data-filter="all"]').text('All (' + total + ')');
+        $('[data-filter="pending"]').text('Pending (' + pending + ')');
+        $('[data-filter="done"]').text('Done (' + done + ')');
+    }
 
     function syncEmptyMessage() {
-        const $list    = $('#task-list');
-        const hasItems = $list.find('.task-item:visible').length > 0;
-
+        const $list = $('#task-list');
         $list.find('#empty-message').remove();
 
-        if (!hasItems) {
-            const hasTasks = $list.find('.task-item').length > 0;
-            $('<li>')
-                .attr('id', 'empty-message')
-                .addClass('list-group-item text-center text-muted')
-                .text(hasTasks ? 'No tasks match this filter.' : 'No tasks yet. Add one above!')
-                .appendTo($list);
+        if (!$list.find('.task-item:visible').length) {
+            const msg = $list.find('.task-item:not(.task-leaving)').length
+                ? 'No tasks match this filter.'
+                : 'No tasks yet. Add one above!';
+            $('<li>').attr('id', 'empty-message').addClass('empty-message').text(msg).appendTo($list);
         }
     }
 
-    // ── DOM helpers ───────────────────────────────────────────────────────────
+    // ── Toast ─────────────────────────────────────────────────────────────────
+
+    function showToast(msg, onUndo) {
+        clearTimeout(toastTimer);
+        $('#toast-msg').text(msg);
+        $('#toast').addClass('visible');
+
+        $('#toast-undo').off('click').on('click', function () {
+            clearTimeout(toastTimer);
+            pendingDelete = null;
+            onUndo();
+            hideToast();
+        });
+
+        $('#toast-close').off('click').on('click', function () {
+            clearTimeout(toastTimer);
+            commitDelete();
+            hideToast();
+        });
+    }
+
+    function hideToast() {
+        $('#toast').removeClass('visible');
+    }
+
+    // ── Character counter ─────────────────────────────────────────────────────
+
+    function bindCounter($textarea, $counter) {
+        const max = parseInt($textarea.attr('maxlength'), 10);
+        function update() {
+            const len = $textarea.val().length;
+            $counter.text(len + '/' + max)
+                .toggleClass('warning', len >= max - 40 && len < max - 15)
+                .toggleClass('danger',  len >= max - 15);
+        }
+        $textarea.on('input', update);
+        update();
+    }
+
+    bindCounter($('#task-name-input'), $('[data-for="task-name-input"]'));
+
+    $('#clear-input-btn').on('click', function () {
+        $('#task-name-input').val('').trigger('input').trigger('focus');
+    });
+
+    // ── DOM builder ───────────────────────────────────────────────────────────
 
     function prependTask(task) {
         $('#empty-message').remove();
 
+        const $actions = $('<div>').addClass('task-actions').append(
+            $('<button>').attr('type', 'button').addClass('btn-action btn-edit').text('Edit'),
+            $('<button>').attr('type', 'button').addClass('btn-action btn-toggle').text('Done'),
+            $('<button>').attr('type', 'button').addClass('btn-action btn-delete').text('Delete')
+        );
+
         $('<li>')
-            .addClass('list-group-item task-item task-pending d-flex align-items-center gap-2')
+            .addClass('task-item task-pending')
             .attr('data-id', task.id)
-            .append(
-                $('<span>').addClass('task-name flex-grow-1').attr('title', 'Double-click to edit').text(task.name),
-                $('<button>').attr('type', 'button').addClass('btn btn-sm btn-outline-success toggle-btn').text('Done'),
-                $('<button>').attr('type', 'button').addClass('btn btn-sm btn-outline-danger delete-btn').text('Delete')
-            )
+            .append($('<span>').addClass('task-name').text(task.name), $actions)
             .prependTo('#task-list');
     }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+
+    updateFilterBadges();
 
 });
