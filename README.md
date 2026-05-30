@@ -52,9 +52,9 @@ Open [http://localhost:8000](http://localhost:8000).
 |---|---|
 | Add task | AJAX form submission, no page reload |
 | Mark done / undo | AJAX toggle |
-| Delete task | AJAX |
-| Edit task name | Double-click the name to edit inline; Enter to save, Escape to cancel |
-| Filter tasks | All / Pending / Done — CSS-driven, instant |
+| Delete task | AJAX with undo toast — 5-second window to cancel the deletion |
+| Edit task name | Click Edit to edit inline; click Save to confirm, Escape to cancel |
+| Filter tasks | All / Pending / Done with live counts, instant |
 
 ## Running tests
 
