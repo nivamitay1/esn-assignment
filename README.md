@@ -1,0 +1,66 @@
+# ESN – To-Do List
+
+A simple task management application built with Laravel 13, MySQL, Bootstrap 5, and jQuery.
+
+## Tech stack
+
+- **Backend:** Laravel 13 (PHP 8.3)
+- **Database:** MySQL 8
+- **Frontend:** Bootstrap 5.3 · jQuery 3.7 (served from `public/`, no build step)
+
+## Setup
+
+**1. Clone and install dependencies**
+```bash
+git clone <repo-url>
+cd ESN-assignment
+composer install
+```
+
+**2. Configure environment**
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+Edit `.env` and set your database credentials:
+```
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=esn_todo
+DB_USERNAME=your_user
+DB_PASSWORD=your_password
+```
+
+**3. Create the database and run migrations**
+```bash
+mysql -u your_user -p -e "CREATE DATABASE esn_todo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+php artisan migrate
+```
+
+**4. Start the development server**
+```bash
+php artisan serve
+```
+
+Open [http://localhost:8000](http://localhost:8000).
+
+## Features
+
+| Feature | Notes |
+|---|---|
+| Add task | AJAX form submission, no page reload |
+| Mark done / undo | AJAX toggle |
+| Delete task | AJAX |
+| Edit task name | Double-click the name to edit inline; Enter to save, Escape to cancel |
+| Filter tasks | All / Pending / Done — CSS-driven, instant |
+
+## Running tests
+
+```bash
+php artisan test
+
+# Single test class
+php artisan test --filter ExampleTest
+```
