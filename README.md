@@ -51,12 +51,3 @@ Open [http://localhost:8000](http://localhost:8000).
 | Delete task | AJAX with undo toast — 5-second window to cancel the deletion |
 | Edit task name | Click Edit to edit inline; click Save to confirm, Escape to cancel |
 | Filter tasks | All / Pending / Done with live counts, instant |
-
-## Running tests
-
-```bash
-php artisan test
-
-# Single test class
-php artisan test --filter ExampleTest
-```
