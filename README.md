@@ -25,17 +25,13 @@ php artisan key:generate
 
 Edit `.env` and set your database credentials:
 ```
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=esn_todo
-DB_USERNAME=your_user
-DB_PASSWORD=your_password
+DB_USERNAME=your_db_user
+DB_PASSWORD=your_db_password
 ```
 
 **3. Create the database and run migrations**
 ```bash
-mysql -u your_user -p -e "CREATE DATABASE esn_todo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u your_db_user -p -e "CREATE DATABASE esn_todo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 php artisan migrate
 ```
 
