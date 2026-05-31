@@ -12,7 +12,7 @@ A simple task management application built with Laravel 13, MySQL, Bootstrap 5, 
 
 **1. Clone and install dependencies**
 ```bash
-git clone <repo-url>
+git clone https://github.com/nivamitay1/esn-assignment
 cd ESN-assignment
 composer install
 ```
